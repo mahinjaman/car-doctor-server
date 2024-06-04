@@ -8,33 +8,31 @@ const cookieParser = require('cookie-parser')
 // Middleware
 
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    origin: ['https://car-doctor-2-dcc86.web.app', 'https://car-doctor-2-dcc86.firebaseapp.com'],
     credentials: true
 }))
 app.use(express.json())
 app.use(cookieParser())
 
 
-// My Middleware 
+// My middleware
 
-const verifyUser = (req, res, next) =>{
+
+const verifyUser = (req, res, next) => {
     const token = req.cookies?.token;
+    console.log('Verify token',token);
     if(!token){
         return res.status(401).send({ message: 'UnAuthorized' })
     }
-
-    jwt.verify(token, process.env.SECRET_TOKEN, (err, decode)=>{
+    
+    jwt.verify(token, process.env.SECRET_TOKEN, (err, decoded)=>{
         if(err){
             return res.status(401).send({message: 'UnAuthorized'})
         }
-        req.user = decode;
+        req.user = decoded;
         next()
     })
-
-    // next()
-
 }
-
 
 // Routes
 
@@ -45,7 +43,6 @@ app.get('/', (req, res) => {
 
 // MongoDB routes
 
-console.log(process.env.DB_USER);
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -68,21 +65,28 @@ async function run() {
 
         // Jwt authorization
 
+        // set cookie
         app.post('/jwt', async (req, res) => {
             const user = await req.body;
-            console.log(user);
-            const token = jwt.sign(user, process.env.SECRET_TOKEN, {expiresIn: '12 hours'});
+            const token = jwt.sign(user, process.env.SECRET_TOKEN, {expiresIn: '1hr'});
             res
             .cookie('token', token, {
                 httpOnly: true,
-                secure: false
+                secure: true,
+                sameSite:'none'
             })
-            .send({success: true})
+            .send({success: true});
         })
 
+        // clear cookie
+        app.post('/logout', async(req, res)=>{
+            const user = req.body;
+            res
+            .clearCookie('token')
+            .send({success: true});
+        })
 
-
-        // Car services
+        // Car services related
 
     //    get services data from mongodb server
     app.get('/services', async(req, res)=>{
@@ -92,7 +96,7 @@ async function run() {
 
     // get specific services data from mongodb server
     app.get('/services/:id', async(req, res)=>{
-        const id =await req.params.id;
+        const id = await req.params.id;
         const query = {_id : new ObjectId(id)}
         const result = await serviceCollections.findOne(query);
         res.send(result);
@@ -111,14 +115,13 @@ async function run() {
     })
 
     // get specific user Bookings service
-    app.get('/bookings', verifyUser,  async(req, res)=>{
+        app.get('/bookings', verifyUser,  async(req, res)=>{
         const currentUser = req.user;
-        
-        const email = req.query.email;
-        if (currentUser.email !== email){
+        console.log(currentUser);
+
+        if(currentUser.email !== req.query.email){
             return res.status(401).send({ message: 'UnAuthorized' })
         }
-
 
         let query = {}
 
